@@ -70,10 +70,10 @@ esp_err_t ota_spiffs(const char *serverUrl)
     }
     esp_http_client_fetch_headers(client);
 
-    printf("Deleting old contents\r\n");
+    printf("Deleting old contents, %lx (%lx)\r\n", spiffs_partition->address, spiffs_partition->size);
 
     /* 2: Delete SPIFFS Partition  */
-    err = esp_partition_erase_range(spiffs_partition, spiffs_partition->address, spiffs_partition->size);
+    esp_partition_erase_range(spiffs_partition, 0, spiffs_partition->size);
 
 
     int binary_file_length = 0;
