@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-esp_err_t ota_spiffs(const char *label = NULL);
+esp_err_t ota_spiffs(const char *label);
 
 #ifdef __cplusplus
 }

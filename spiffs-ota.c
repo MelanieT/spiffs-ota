@@ -35,7 +35,7 @@ esp_err_t ota_spiffs(const char *label)
     /*Update SPIFFS : 1/ First we need to find SPIFFS partition  */
 
     char *file = label ? label : "spiffs";
-    char url[strlen(CONFIG_SPIFFS_OTA_URI) + strlen(file) + 6];
+    char *url = malloc(strlen(CONFIG_SPIFFS_OTA_URI) + strlen(file) + 6);
     url[sizeof(url) - 1] = 0;
     snprintf(url, sizeof(url) - 1, "%s/%s.bin", CONFIG_SPIFFS_OTA_URI, file);
 
@@ -54,13 +54,22 @@ esp_err_t ota_spiffs(const char *label)
         printf("\n");
         spiffs_partition_iterator = esp_partition_next(spiffs_partition_iterator);
     }
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
+//    vTaskDelay(1000 / portTICK_PERIOD_MS);
     esp_partition_iterator_release(spiffs_partition_iterator);
 
+    if (spiffs_partition == NULL)
+    {
+        free(url);
+        return -1;
+    }
+    
     esp_http_client_config_t config = {
         .url = url,
     };
     esp_http_client_handle_t client = esp_http_client_init(&config);
+
+    free(url);
+
     if (client == NULL)
     {
         ESP_LOGE(TAG, "Failed to initialise HTTP connection");
