@@ -1,0 +1,6 @@
+menu "SPIFFS ota component"
+
+config SPIFFS_OTA_URI
+    string "Uri to download SPIFFS web interface image"
+
+endmenu

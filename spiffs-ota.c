@@ -20,7 +20,7 @@
 
 static char ota_write_data[BUFFSIZE];
 
-esp_err_t ota_spiffs(const char *serverUrl)
+esp_err_t ota_spiffs(const char *label)
 {
     printf("Starting update of SPIFFS data via OTA\r\n");
 
@@ -36,8 +36,13 @@ esp_err_t ota_spiffs(const char *serverUrl)
 
     /*Update SPIFFS : 1/ First we need to find SPIFFS partition  */
 
+    char *file = label ? label : "spiffs";
+    char *url = malloc(strlen(CONFIG_SPIFFS_OTA_URI) + strlen(file) + 6);
+    url[sizeof(url) - 1] = 0;
+    snprintf(url, sizeof(url) - 1, "%s/%s.bin", CONFIG_SPIFFS_OTA_URI, file);
+
     esp_partition_iterator_t spiffs_partition_iterator = esp_partition_find(ESP_PARTITION_TYPE_DATA,
-                                                                            ESP_PARTITION_SUBTYPE_DATA_SPIFFS, NULL);
+                                                                            ESP_PARTITION_SUBTYPE_DATA_SPIFFS, label);
     while (spiffs_partition_iterator != NULL)
     {
         spiffs_partition = (esp_partition_t *) esp_partition_get(spiffs_partition_iterator);
@@ -51,7 +56,7 @@ esp_err_t ota_spiffs(const char *serverUrl)
         printf("\n");
         spiffs_partition_iterator = esp_partition_next(spiffs_partition_iterator);
     }
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
+//    vTaskDelay(1000 / portTICK_PERIOD_MS);
     esp_partition_iterator_release(spiffs_partition_iterator);
 
     if (spiffs_partition == NULL)
@@ -66,6 +71,9 @@ esp_err_t ota_spiffs(const char *serverUrl)
         .keep_alive_enable = true,
     };
     esp_http_client_handle_t client = esp_http_client_init(&config);
+
+    free(url);
+
     if (client == NULL)
     {
         ESP_LOGE(TAG, "Failed to initialise HTTP connection");
