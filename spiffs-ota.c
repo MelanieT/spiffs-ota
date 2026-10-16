@@ -1,3 +1,5 @@
+#include <stdlib.h>
+#include <string.h>
 #include <esp_partition.h>
 #include <esp_log.h>
 #include "freertos/FreeRTOS.h"
@@ -22,6 +24,22 @@ static char ota_write_data[BUFFSIZE];
 
 esp_err_t ota_spiffs(const char *label)
 {
+    const char *file = label ? label : "spiffs";
+    size_t len = strlen(CONFIG_SPIFFS_OTA_URI) + strlen(file) + 6; // "/", ".bin" and NUL
+    char *url = malloc(len);
+    if (url == NULL)
+        return ESP_ERR_NO_MEM;
+    snprintf(url, len, "%s/%s.bin", CONFIG_SPIFFS_OTA_URI, file);
+
+    esp_err_t err = ota_spiffs_url(url, label);
+
+    free(url);
+
+    return err;
+}
+
+esp_err_t ota_spiffs_url(const char *url, const char *label)
+{
     printf("Starting update of SPIFFS data via OTA\r\n");
 
     esp_err_t err;
@@ -35,11 +53,6 @@ esp_err_t ota_spiffs(const char *label)
 //    const esp_partition_t *running = esp_ota_get_running_partition();
 
     /*Update SPIFFS : 1/ First we need to find SPIFFS partition  */
-
-    char *file = label ? label : "spiffs";
-    char *url = malloc(strlen(CONFIG_SPIFFS_OTA_URI) + strlen(file) + 6);
-    url[sizeof(url) - 1] = 0;
-    snprintf(url, sizeof(url) - 1, "%s/%s.bin", CONFIG_SPIFFS_OTA_URI, file);
 
     esp_partition_iterator_t spiffs_partition_iterator = esp_partition_find(ESP_PARTITION_TYPE_DATA,
                                                                             ESP_PARTITION_SUBTYPE_DATA_SPIFFS, label);
@@ -66,13 +79,11 @@ esp_err_t ota_spiffs(const char *label)
     }
 
     esp_http_client_config_t config = {
-        .url = serverUrl,
+        .url = url,
         // TCP keepalive, so a dead server is noticed as an error rather than endless timeouts
         .keep_alive_enable = true,
     };
     esp_http_client_handle_t client = esp_http_client_init(&config);
-
-    free(url);
 
     if (client == NULL)
     {

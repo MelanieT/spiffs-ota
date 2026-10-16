@@ -10,7 +10,11 @@
 extern "C" {
 #endif
 
+// Downloads CONFIG_SPIFFS_OTA_URI/<label>.bin into the SPIFFS partition <label>.
+// NULL selects the first SPIFFS partition and spiffs.bin.
 esp_err_t ota_spiffs(const char *label);
+// Same, from the given URL
+esp_err_t ota_spiffs_url(const char *url, const char *label);
 
 #ifdef __cplusplus
 }

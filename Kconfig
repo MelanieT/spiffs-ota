@@ -2,5 +2,9 @@ menu "SPIFFS ota component"
 
 config SPIFFS_OTA_URI
     string "Uri to download SPIFFS web interface image"
+    default ""
+    help
+        URI of the directory holding the image. ota_spiffs(label) downloads
+        <uri>/<label>.bin, <uri>/spiffs.bin for the default partition.
 
 endmenu
