@@ -15,6 +15,8 @@
 */
 
 #define BUFFSIZE (8192)
+// Give up when the download makes no progress for this long
+#define STALL_TIMEOUT_MS (60000)
 
 static char ota_write_data[BUFFSIZE];
 
@@ -52,8 +54,16 @@ esp_err_t ota_spiffs(const char *serverUrl)
     vTaskDelay(1000 / portTICK_PERIOD_MS);
     esp_partition_iterator_release(spiffs_partition_iterator);
 
+    if (spiffs_partition == NULL)
+    {
+        ESP_LOGE(TAG, "No SPIFFS partition found");
+        return ESP_ERR_NOT_FOUND;
+    }
+
     esp_http_client_config_t config = {
         .url = serverUrl,
+        // TCP keepalive, so a dead server is noticed as an error rather than endless timeouts
+        .keep_alive_enable = true,
     };
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (client == NULL)
@@ -68,7 +78,17 @@ esp_err_t ota_spiffs(const char *serverUrl)
         esp_http_client_cleanup(client);
         return ESP_ERR_HTTP_CONNECT;
     }
-    esp_http_client_fetch_headers(client);
+    int64_t content_length = esp_http_client_fetch_headers(client);
+    int status = esp_http_client_get_status_code(client);
+
+    // Check before erasing, or a failed request wipes the current web interface
+    if (status != 200 || content_length > (int64_t) spiffs_partition->size)
+    {
+        ESP_LOGE(TAG, "Not updating, status %d, length %lld, partition size %lu", status, content_length,
+                 (unsigned long) spiffs_partition->size);
+        esp_http_client_cleanup(client);
+        return ESP_ERR_HTTP_FETCH_HEADER;
+    }
 
     printf("Deleting old contents, %lx (%lx)\r\n", spiffs_partition->address, spiffs_partition->size);
 
@@ -82,9 +102,21 @@ esp_err_t ota_spiffs(const char *serverUrl)
 
     printf("Downloading and writing new image\r\n");
 
+    TickType_t last_progress = xTaskGetTickCount();
     while (1)
     {
         int data_read = esp_http_client_read(client, ota_write_data, BUFFSIZE);
+        if (data_read == -ESP_ERR_HTTP_EAGAIN)
+        {
+            // Read timeout: a slow link is not an error until it stalls
+            if ((xTaskGetTickCount() - last_progress) * portTICK_PERIOD_MS > STALL_TIMEOUT_MS)
+            {
+                ESP_LOGE(TAG, "Download stalled at %d bytes", binary_file_length);
+                esp_http_client_cleanup(client);
+                return ESP_ERR_TIMEOUT;
+            }
+            continue;
+        }
         if (data_read < 0)
         {
             ESP_LOGE(TAG, "Error: SSL data read error");
@@ -104,6 +136,7 @@ esp_err_t ota_spiffs(const char *serverUrl)
 
             offset += data_read;
             binary_file_length += data_read;
+            last_progress = xTaskGetTickCount();
             ESP_LOGD(TAG, "Written image length %d", binary_file_length);
         }
         else
@@ -114,4 +147,15 @@ esp_err_t ota_spiffs(const char *serverUrl)
     }
 
     ESP_LOGI(TAG, "Total Write binary data length : %d", binary_file_length);
+
+    bool complete = esp_http_client_is_complete_data_received(client);
+    esp_http_client_cleanup(client); // Was leaked on success
+
+    if (!complete)
+    {
+        ESP_LOGE(TAG, "Download incomplete, %d bytes", binary_file_length);
+        return ESP_FAIL;
+    }
+
+    return ESP_OK;
 }
