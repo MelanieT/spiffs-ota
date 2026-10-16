@@ -15,6 +15,9 @@ extern "C" {
 esp_err_t ota_spiffs(const char *label);
 // Same, from the given URL
 esp_err_t ota_spiffs_url(const char *url, const char *label);
+// Called while downloading with the bytes written so far and the image size (-1 if unknown). NULL for none.
+typedef void (*ota_spiffs_progress_t)(int done, int total);
+void ota_spiffs_set_progress_callback(ota_spiffs_progress_t progress);
 
 #ifdef __cplusplus
 }

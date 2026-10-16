@@ -21,6 +21,12 @@
 #define STALL_TIMEOUT_MS (60000)
 
 static char ota_write_data[BUFFSIZE];
+static ota_spiffs_progress_t progress_callback = NULL;
+
+void ota_spiffs_set_progress_callback(ota_spiffs_progress_t progress)
+{
+    progress_callback = progress;
+}
 
 esp_err_t ota_spiffs(const char *label)
 {
@@ -157,6 +163,8 @@ esp_err_t ota_spiffs_url(const char *url, const char *label)
             binary_file_length += data_read;
             last_progress = xTaskGetTickCount();
             ESP_LOGD(TAG, "Written image length %d", binary_file_length);
+            if (progress_callback)
+                progress_callback(binary_file_length, (int) content_length);
         }
         else
         {
